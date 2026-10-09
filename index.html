@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>情報カスケード・ソーシャルネットワーク</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #1a0f08; color: #f5e6d0; }
+  .card { background: #1e1208; border: 1px solid #5a3a20; }
+  .btn-coral { background: #c2410c; }
+  .btn-coral:hover { background: #ea580c; }
+  .btn-step { background: #92400e; }
+  .btn-step:hover { background: #b45309; }
+  input[type=range] { accent-color: #ea580c; }
+  #gridCanvas { cursor: pointer; touch-action: none; }
+  .mode-btn { border: 1px solid #5a3a20; padding: 2px 10px; border-radius: 4px; font-size:12px; }
+  .mode-btn.active { background:#c2410c; border-color:#ea580c; color:#fff; }
+</style>
+</head>
+<body class="min-h-screen p-3">
+<h1 class="text-xl font-bold text-center mb-3" style="color:#f97316">情報カスケード・ソーシャルネットワーク</h1>
+
+<div class="max-w-5xl mx-auto">
+  <div class="flex flex-wrap gap-3">
+    <!-- Canvas -->
+    <div class="flex-1 min-w-64">
+      <canvas id="gridCanvas" class="rounded-xl border w-full" style="border-color:#5a3a20;background:#100806"></canvas>
+      <p class="text-xs text-center mt-1" style="color:#8b6a4a" id="clickHint">クリック: 種ノード追加</p>
+    </div>
+    <!-- Controls -->
+    <div class="w-60 space-y-3">
+      <div class="card rounded-xl p-3 space-y-2">
+        <p class="text-xs font-semibold" style="color:#f97316">ネットワーク設定</p>
+        <div>
+          <label class="text-xs" style="color:#c8a07a">グリッドサイズ: <span id="gridSizeVal">15</span>×<span id="gridSizeVal2">15</span></label>
+          <input type="range" id="gridSizeSlider" min="10" max="30" value="15" class="w-full" aria-label="グリッドサイズ"
+            oninput="let v=this.value;document.getElementById('gridSizeVal').textContent=v;document.getElementById('gridSizeVal2').textContent=v;">
+        </div>
+        <div>
+          <label class="text-xs" style="color:#c8a07a">採用閾値分布:</label>
+          <div class="flex gap-1 flex-wrap mt-1">
+            <button onclick="setThreshDist('low')" id="td-low" class="mode-btn active" aria-label="低閾値">低</button>
+            <button onclick="setThreshDist('high')" id="td-high" class="mode-btn" aria-label="高閾値">高</button>
+            <button onclick="setThreshDist('random')" id="td-random" class="mode-btn" aria-label="ランダム閾値">ランダム</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="smallWorldToggle" class="rounded" aria-label="スモールワールドトポロジー切替">
+          <label for="smallWorldToggle" class="text-xs" style="color:#c8a07a">スモールワールド</label>
+        </div>
+        <button id="buildBtn" class="btn-coral w-full py-1 rounded text-sm text-white" aria-label="ネットワーク構築">ネットワーク構築</button>
+      </div>
+
+      <div class="card rounded-xl p-3 space-y-2">
+        <p class="text-xs font-semibold" style="color:#f97316">クリックモード</p>
+        <div class="flex gap-1 flex-wrap">
+          <button onclick="setClickMode('seed')" id="cm-seed" class="mode-btn active" aria-label="種ノードモード">種追加</button>
+          <button onclick="setClickMode('stubborn')" id="cm-stubborn" class="mode-btn" aria-label="頑固ノードモード">頑固</button>
+          <button onclick="setClickMode('clear')" id="cm-clear" class="mode-btn" aria-label="クリアモード">クリア</button>
+        </div>
+      </div>
+
+      <div class="card rounded-xl p-3 space-y-2">
+        <p class="text-xs font-semibold" style="color:#f97316">シミュレーション</p>
+        <div class="flex gap-2">
+          <button id="stepBtn" class="btn-step flex-1 py-1 rounded text-sm text-white" aria-label="1ステップ進める">1ステップ</button>
+          <button id="autoBtn" class="btn-coral flex-1 py-1 rounded text-sm text-white" aria-label="自動実行">自動</button>
+        </div>
+        <button id="resetSimBtn" class="w-full py-1 rounded text-sm text-white" style="background:#3a1a08;border:1px solid #5a3a20" aria-label="シミュレーションリセット">リセット</button>
+      </div>
+
+      <div class="card rounded-xl p-3">
+        <p class="text-xs font-semibold mb-2" style="color:#f97316">カスケードサイズ推移</p>
+        <canvas id="cascadeChart" height="100" aria-label="カスケードサイズ推移バーチャート"></canvas>
+        <div class="mt-2 space-y-1 text-xs">
+          <div class="flex justify-between"><span style="color:#c8a07a">ステップ:</span><span id="statStep" style="color:#fb923c;font-weight:bold">0</span></div>
+          <div class="flex justify-between"><span style="color:#c8a07a">採用率:</span><span id="statRate" style="color:#fb923c;font-weight:bold">0%</span></div>
+          <div class="flex justify-between"><span style="color:#c8a07a">採用数:</span><span id="statAdopted" style="color:#fb923c;font-weight:bold">0</span></div>
+          <div class="flex justify-between"><span style="color:#c8a07a">頑固ノード:</span><span id="statStubborn" style="color:#6b7280;font-weight:bold">0</span></div>
+        </div>
+      </div>
+
+      <div class="card rounded-xl p-3">
+        <p class="text-xs font-semibold mb-1" style="color:#f97316">凡例</p>
+        <div class="text-xs space-y-1">
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded inline-block" style="background:#fb923c"></span>採用済み</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded inline-block" style="background:#e7d5c0"></span>未採用</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded inline-block" style="background:#1f2937"></span>頑固ノード（不採用）</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded inline-block" style="background:#f59e0b"></span>種ノード（初期採用）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gridCanvas');
+const ctx = canvas.getContext('2d');
+const chartCanvas = document.getElementById('cascadeChart');
+const chartCtx = chartCanvas.getContext('2d');
+
+let N = 15;
+let nodes = []; // {state: 'none'|'adopted'|'stubborn', threshold, neighbors:[]}
+let clickMode = 'seed';
+let threshDist = 'low';
+let autoRunning = false;
+let autoId = null;
+let cascadeHistory = [];
+let step = 0;
+let CELL;
+
+function setThreshDist(d) {
+  threshDist=d;
+  ['low','high','random'].forEach(t=>document.getElementById('td-'+t).classList.remove('active'));
+  document.getElementById('td-'+d).classList.add('active');
+}
+function setClickMode(m) {
+  clickMode=m;
+  ['seed','stubborn','clear'].forEach(t=>document.getElementById('cm-'+t).classList.remove('active'));
+  document.getElementById('cm-'+m).classList.add('active');
+  const hints={'seed':'クリック: 種ノード追加','stubborn':'クリック: 頑固ノード設定','clear':'クリック: ノードをクリア'};
+  document.getElementById('clickHint').textContent=hints[m];
+}
+
+function getThreshold() {
+  if(threshDist==='low') return 0.1+Math.random()*0.2;
+  if(threshDist==='high') return 0.4+Math.random()*0.4;
+  return Math.random()*0.6+0.1;
+}
+
+function buildNetwork() {
+  N = +document.getElementById('gridSizeSlider').value;
+  nodes=[];
+  for(let i=0;i<N*N;i++) nodes.push({state:'none', threshold:getThreshold(), neighbors:[]});
+
+  // Grid neighbors
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) {
+    const i=r*N+c;
+    if(r>0) nodes[i].neighbors.push((r-1)*N+c);
+    if(r<N-1) nodes[i].neighbors.push((r+1)*N+c);
+    if(c>0) nodes[i].neighbors.push(r*N+c-1);
+    if(c<N-1) nodes[i].neighbors.push(r*N+c+1);
+  }
+
+  // Small world: add random long-range connections
+  if(document.getElementById('smallWorldToggle').checked) {
+    const extraEdges = Math.floor(N*N*0.15);
+    for(let e=0;e<extraEdges;e++) {
+      const a=Math.floor(Math.random()*N*N);
+      const b=Math.floor(Math.random()*N*N);
+      if(a!==b && !nodes[a].neighbors.includes(b)) {
+        nodes[a].neighbors.push(b);
+        nodes[b].neighbors.push(a);
+      }
+    }
+  }
+
+  cascadeHistory=[];
+  step=0;
+  autoRunning=false; clearInterval(autoId);
+  document.getElementById('autoBtn').textContent='自動';
+  updateStats();
+  drawGrid();
+  drawChart();
+}
+
+function getCell() { return Math.floor((canvas.width / N)); }
+
+canvas.addEventListener('click', e => {
+  if(nodes.length===0) return;
+  const rect=canvas.getBoundingClientRect();
+  const sx=canvas.width/rect.width, sy=canvas.height/rect.height;
+  const px=(e.clientX-rect.left)*sx, py=(e.clientY-rect.top)*sy;
+  const cell=getCell();
+  const c=Math.floor(px/cell), r=Math.floor(py/cell);
+  if(c<0||c>=N||r<0||r>=N) return;
+  const i=r*N+c;
+  if(clickMode==='seed') nodes[i].state='adopted';
+  else if(clickMode==='stubborn') nodes[i].state='stubborn';
+  else nodes[i].state='none';
+  drawGrid();
+  updateStats();
+});
+
+function stepSim() {
+  if(nodes.length===0) return;
+  const newStates=[...nodes.map(n=>n.state)];
+  let changed=false;
+  nodes.forEach((n,i)=>{
+    if(n.state!=='none') return;
+    const adopted=n.neighbors.filter(j=>nodes[j].state==='adopted').length;
+    const total=n.neighbors.length||1;
+    if(adopted/total >= n.threshold) { newStates[i]='adopted'; changed=true; }
+  });
+  nodes.forEach((n,i)=>n.state=newStates[i]);
+  step++;
+  const adoptedCount=nodes.filter(n=>n.state==='adopted').length;
+  cascadeHistory.push(adoptedCount);
+  drawGrid(); drawChart(); updateStats();
+  if(!changed) { autoRunning=false; clearInterval(autoId); document.getElementById('autoBtn').textContent='自動'; }
+}
+
+document.getElementById('stepBtn').addEventListener('click', stepSim);
+document.getElementById('autoBtn').addEventListener('click', () => {
+  autoRunning=!autoRunning;
+  document.getElementById('autoBtn').textContent=autoRunning?'停止':'自動';
+  if(autoRunning) autoId=setInterval(stepSim,300);
+  else clearInterval(autoId);
+});
+document.getElementById('resetSimBtn').addEventListener('click', () => {
+  autoRunning=false; clearInterval(autoId);
+  document.getElementById('autoBtn').textContent='自動';
+  nodes.forEach(n=>n.state='none');
+  cascadeHistory=[]; step=0;
+  drawGrid(); drawChart(); updateStats();
+});
+document.getElementById('buildBtn').addEventListener('click', buildNetwork);
+
+function drawGrid() {
+  const cell=getCell();
+  const W2=cell*N, H2=cell*N;
+  if(canvas.width!==W2||canvas.height!==H2){canvas.width=W2;canvas.height=H2;}
+  ctx.clearRect(0,0,W2,H2);
+  // Draw connections (small sample)
+  ctx.strokeStyle='rgba(90,58,32,0.3)'; ctx.lineWidth=0.5;
+  nodes.forEach((n,i)=>{
+    const r=Math.floor(i/N), c=i%N;
+    const x=c*cell+cell/2, y=r*cell+cell/2;
+    n.neighbors.forEach(j=>{
+      if(j<=i) return; // draw once
+      const r2=Math.floor(j/N), c2=j%N;
+      const x2=c2*cell+cell/2, y2=r2*cell+cell/2;
+      // Only draw if not too long (avoid clutter for small-world edges)
+      const dist=Math.sqrt((x-x2)**2+(y-y2)**2);
+      if(dist<cell*3){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y2);ctx.stroke();}
+    });
+  });
+  nodes.forEach((n,i)=>{
+    const r=Math.floor(i/N), c=i%N;
+    const x=c*cell+cell/2, y=r*cell+cell/2;
+    const rad=Math.max(4, cell/2-2);
+    ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2);
+    if(n.state==='adopted') ctx.fillStyle='#fb923c';
+    else if(n.state==='stubborn') ctx.fillStyle='#1f2937';
+    else {
+      const g=ctx.createRadialGradient(x-1,y-1,1,x,y,rad);
+      g.addColorStop(0,'#f5e6d0'); g.addColorStop(1,'#c8a07a');
+      ctx.fillStyle=g;
+    }
+    ctx.fill();
+    if(n.state==='none'&&rad>6){
+      ctx.strokeStyle='rgba(200,160,120,0.3)';ctx.lineWidth=0.5;ctx.stroke();
+      // Show threshold as tiny text
+      ctx.fillStyle='rgba(80,50,20,0.7)';
+      ctx.font=Math.max(7,cell*0.3)+'px sans-serif';
+      ctx.textAlign='center';
+      ctx.fillText((n.threshold*100).toFixed(0)+'%',x,y+3);
+    }
+  });
+}
+
+function drawChart() {
+  const W2=chartCanvas.parentElement.clientWidth-24;
+  chartCanvas.width=W2; chartCanvas.height=100;
+  chartCtx.clearRect(0,0,W2,100);
+  if(cascadeHistory.length===0) return;
+  const total=N*N;
+  const maxH=80;
+  const barW=Math.max(1,Math.floor((W2-10)/Math.max(cascadeHistory.length,1)));
+  const maxVal=Math.max(...cascadeHistory,1);
+  cascadeHistory.forEach((v,i)=>{
+    const h=Math.floor((v/total)*maxH);
+    const x=5+i*(barW+1);
+    const g=chartCtx.createLinearGradient(0,100-h,0,100);
+    g.addColorStop(0,'#fb923c');g.addColorStop(1,'#7c2d12');
+    chartCtx.fillStyle=g;
+    chartCtx.fillRect(x,100-h,barW,h);
+  });
+  chartCtx.fillStyle='#c8a07a'; chartCtx.font='9px sans-serif'; chartCtx.textAlign='left';
+  chartCtx.fillText('100%',2,10);
+  chartCtx.fillStyle='rgba(90,58,32,0.5)';
+  chartCtx.fillRect(0,20,W2,0.5);
+}
+
+function updateStats() {
+  const adopted=nodes.filter(n=>n.state==='adopted').length;
+  const stubborn=nodes.filter(n=>n.state==='stubborn').length;
+  const total=nodes.length||1;
+  document.getElementById('statStep').textContent=step;
+  document.getElementById('statAdopted').textContent=adopted;
+  document.getElementById('statStubborn').textContent=stubborn;
+  document.getElementById('statRate').textContent=(adopted/total*100).toFixed(1)+'%';
+}
+
+// Build initial network
+buildNetwork();
+</script>
+</body>
+</html>
